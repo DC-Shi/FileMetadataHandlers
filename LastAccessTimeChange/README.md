@@ -13,3 +13,8 @@ link-shell-extension "smart copy":  modified time keeps, file created time and f
 normal windows copy: file create time and modified keeps, accessed time changed. Folder create time keeps, other two modified.
 
 This program compares folders in from.txt and folders in to.txt . If there have same children in folders, it tries to change time to the oldest.
+
+# Usage
+`LastAccessTimeChange.exe` would print a list of what will be changed.
+
+`LastAccessTimeChange.exe -a` would print the list and apply the timestamp modification.

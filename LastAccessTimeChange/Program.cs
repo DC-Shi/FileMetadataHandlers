@@ -18,14 +18,60 @@ namespace LastAccessTimeChange
 
             Trace.Assert(fromPaths.Length == toPaths.Length, "ERROR: from.txt and to.txt must have exact number of folder paths.");
 
+            bool dryRun = true;
+            if (args.Length == 1 && args[0] == "-a") // Apply the modification, do not dry-run
+                dryRun = false;
+
+            if (dryRun)
+                Console.WriteLine("-------------------DRY-RUN-PLANS-------------------");
             for (int i = 0; i < fromPaths.Length; i++)
             {
-                Compare(fromPaths[i], toPaths[i]);
+                Compare(fromPaths[i], toPaths[i], dryRun);
             }
         }
 
+        /// <summary>
+        /// Modify the target file datetime using functions.
+        /// </summary>
+        /// <param name="getMethod">Function that can get datetime of one file.</param>
+        /// <param name="setMethod">Function that can set datatime with given file path.</param>
+        /// <param name="fromPath">From file, orginal file, source file location.</param>
+        /// <param name="toPath">To file, duplicated file, target file location.</param>
+        /// <param name="dryRun">Whether we are dryrun.</param>
+        /// <returns>True if we can/already change the datetime of target file.</returns>
+        static bool ModifyTime(Func<string, DateTime> getMethod, Action<string, DateTime> setMethod, string fromPath, string toPath, bool dryRun=true)
+        {
+            bool modified = false;
+            
+            // We compare 'to' with 'from', because if 'to' doesn't exist, it will return 1601-01-01, so condition failed as expected.
+            if (getMethod(toPath) > getMethod(fromPath))
+            {
+                Console.WriteLine(fromPath);
+                Console.WriteLine("\t{0}\t{1}", getMethod.Method.Name, getMethod(fromPath));
+                Console.WriteLine(toPath);
+                Console.WriteLine("\t{0}\t{1}", getMethod.Method.Name, getMethod(toPath));
+
+                try
+                {
+                    if (!dryRun) // dryrun option will not change date.
+                        setMethod(toPath, getMethod(fromPath)); // Set the modified time to original one(from).
+                    modified = true;
+                }
+                catch (UnauthorizedAccessException uae)
+                {
+                    Console.WriteLine("Directory/File access denied, failed.");
+                }
+                catch (IOException ioe)
+                {
+                    Console.WriteLine("Directory/File is occupied, failed.");
+                }
+            }
+
+            return modified;
+        }
+
         // From https://stackoverflow.com/questions/2106877/is-there-a-faster-way-than-this-to-find-all-the-files-in-a-directory-and-all-sub/2107294#2107294
-        public static void Compare(string fromDir, string toDir)
+        public static void Compare(string fromDir, string toDir, bool dryRun = true)
         {
             // First compare sub-dirs, this will give the full path
             foreach (var curSubDir in Directory.GetDirectories(fromDir))
@@ -41,71 +87,11 @@ namespace LastAccessTimeChange
 
                 // now curSubDir and toSubDir are checked, so we need to modify themselves.
                 // Creation time
-                if (Directory.GetCreationTime(toSubDir) > Directory.GetCreationTime(curSubDir))
-                {
-                    Console.WriteLine(curSubDir);
-                    Console.WriteLine("\tCreation\t{0}", Directory.GetCreationTime(curSubDir));
-                    Console.WriteLine(toSubDir);
-                    Console.WriteLine("\tCreation\t{0}", Directory.GetCreationTime(toSubDir));
-
-                    try
-                    {
-                        Directory.SetCreationTime(toSubDir, Directory.GetCreationTime(curSubDir)); // Set the creation time to older one(from).
-                    }
-                    catch (UnauthorizedAccessException uae)
-                    {
-                        Console.WriteLine("Directory access denied, change failed.");
-                    }
-                    catch (IOException ioe)
-                    {
-                        Console.WriteLine("Directory is occupied, change failed.");
-                    }
-                    changed = true;
-                }
+                changed |= ModifyTime(Directory.GetCreationTime, Directory.SetCreationTime, curSubDir, toSubDir, dryRun);
                 // Last write(modified) time
-                if (Directory.GetLastWriteTime(toSubDir) > Directory.GetLastWriteTime(curSubDir))
-                {
-                    Console.WriteLine(curSubDir);
-                    Console.WriteLine("\tModified\t{0}", Directory.GetLastWriteTime(curSubDir));
-                    Console.WriteLine(toSubDir);
-                    Console.WriteLine("\tModified\t{0}", Directory.GetLastWriteTime(toSubDir));
-
-                    try
-                    {
-                        Directory.SetLastWriteTime(toSubDir, Directory.GetLastWriteTime(curSubDir)); // Set the modified time to older one(from).
-                    }
-                    catch (UnauthorizedAccessException uae)
-                    {
-                        Console.WriteLine("Directory access denied, change failed.");
-                    }
-                    catch (IOException ioe)
-                    {
-                        Console.WriteLine("Directory is occupied, change failed.");
-                    }
-                    changed = true;
-                }
+                changed |= ModifyTime(Directory.GetLastWriteTime, Directory.SetLastWriteTime, curSubDir, toSubDir, dryRun);
                 // Last access time
-                if (Directory.GetLastAccessTime(toSubDir) > Directory.GetLastAccessTime(curSubDir))
-                {
-                    Console.WriteLine(curSubDir);
-                    Console.WriteLine("\tAccessed\t{0}", Directory.GetLastAccessTime(curSubDir));
-                    Console.WriteLine(toSubDir);
-                    Console.WriteLine("\tAccessed\t{0}", Directory.GetLastAccessTime(toSubDir));
-
-                    try
-                    {
-                        Directory.SetLastAccessTime(toSubDir, Directory.GetLastAccessTime(curSubDir)); // Set the last access time to older one(from).
-                    }
-                    catch (UnauthorizedAccessException uae)
-                    {
-                        Console.WriteLine("Directory access denied, change failed.");
-                    }
-                    catch (IOException ioe)
-                    {
-                        Console.WriteLine("Directory is occupied, change failed.");
-                    }
-                    changed = true;
-                }
+                changed |= ModifyTime(Directory.GetLastAccessTime, Directory.SetLastAccessTime, curSubDir, toSubDir, dryRun);
 
                 if (changed)
                     Console.WriteLine("-----------------------------------------");
@@ -119,27 +105,8 @@ namespace LastAccessTimeChange
                 bool changed = false; // one line in a block.
 
                 // Creation time
-                if (File.GetCreationTime(toSubFile) > File.GetCreationTime(curSubFile))
-                {
-                    Console.WriteLine(curSubFile);
-                    Console.WriteLine("\tCreation\t{0}", File.GetCreationTime(curSubFile));
-                    Console.WriteLine(toSubFile);
-                    Console.WriteLine("\tCreation\t{0}", File.GetCreationTime(toSubFile));
-
-                    try
-                    {
-                        File.SetCreationTime(toSubFile, File.GetCreationTime(curSubFile)); // Set the creation time to older one(from).
-                    }
-                    catch (UnauthorizedAccessException uae)
-                    {
-                        Console.WriteLine("File access denied, change failed.");
-                    }
-                    catch (IOException ioe)
-                    {
-                        Console.WriteLine("File is occupied, change failed.");
-                    }
-                    changed = true;
-                }
+                changed |= ModifyTime(File.GetCreationTime, File.SetCreationTime, curSubFile, toSubFile, dryRun);
+                
                 // Last write(modified) time
                 if (File.GetLastWriteTime(toSubFile) > File.GetLastWriteTime(curSubFile))
                 {
@@ -150,28 +117,9 @@ namespace LastAccessTimeChange
 
                     throw new FileLoadException("The files modify time are different! Does they actually one file?");
                 }
-                // Last access time
-                if (File.GetLastAccessTime(toSubFile) > File.GetLastAccessTime(curSubFile))
-                {
-                    Console.WriteLine(curSubFile);
-                    Console.WriteLine("\tAccessed\t{0}", File.GetLastAccessTime(curSubFile));
-                    Console.WriteLine(toSubFile);
-                    Console.WriteLine("\tAccessed\t{0}", File.GetLastAccessTime(toSubFile));
 
-                    try
-                    {
-                        File.SetLastAccessTime(toSubFile, File.GetLastAccessTime(curSubFile)); // Set the last access time to older one(from).
-                    }
-                    catch (UnauthorizedAccessException uae)
-                    {
-                        Console.WriteLine("File access denied, change failed.");
-                    }
-                    catch (IOException ioe)
-                    {
-                        Console.WriteLine("File is occupied, change failed.");
-                    }
-                    changed = true;
-                }
+                // Creation time
+                changed |= ModifyTime(File.GetLastAccessTime, File.SetLastAccessTime, curSubFile, toSubFile, dryRun);
 
                 if (changed)
                     Console.WriteLine("-----------------------------------------");

@@ -18,3 +18,8 @@ This program compares folders in from.txt and folders in to.txt . If there have 
 `LastAccessTimeChange.exe` would print a list of what will be changed.
 
 `LastAccessTimeChange.exe -a` would print the list and apply the timestamp modification.
+
+
+# Other ways
+Actually you can use `robocopy` to copy with timestamp. Then you can use my program to verify the timestamp.
+`robocopy SRC_DIR TARGET_DIR /E /COPY:DAT /DCOPY:DAT`
